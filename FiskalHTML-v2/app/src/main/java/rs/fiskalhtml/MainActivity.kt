@@ -99,25 +99,7 @@ class MainActivity : AppCompatActivity() {
 
         Thread {
             try {
-                val conn = (URL(urlText).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    connectTimeout = 12000
-                    readTimeout = 15000
-                    setRequestProperty("Accept", "application/json")
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("User-Agent", "FiskalHTML/2.0 Android")
-                    instanceFollowRedirects = true
-                }
-
-                val code = conn.responseCode
-                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-                val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-                conn.disconnect()
-
-                if (code !in 200..299) {
-                    throw IllegalStateException("HTTP $code")
-                }
-
+                val body = downloadAllowedPfrJson(urlText)
                 val root = JSONObject(body)
                 runOnUiThread {
                     lastJson = body
@@ -136,6 +118,62 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun downloadAllowedPfrJson(startUrl: String): String {
+        var currentUrl = startUrl
+
+        repeat(MAX_REDIRECTS + 1) { redirectCount ->
+            if (!isAllowedPfrUrl(currentUrl)) {
+                throw SecurityException("Nedozvoljen PFR host")
+            }
+
+            val connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 12000
+                readTimeout = 15000
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("User-Agent", "FiskalHTML/2.0 Android")
+                instanceFollowRedirects = false
+            }
+
+            try {
+                val code = connection.responseCode
+
+                if (code in 300..399) {
+                    if (redirectCount >= MAX_REDIRECTS) {
+                        throw IllegalStateException("Previše HTTPS preusmeravanja")
+                    }
+
+                    val location = connection.getHeaderField("Location")
+                        ?: throw IllegalStateException("PFR preusmeravanje nema Location zaglavlje")
+                    val nextUrl = URL(URL(currentUrl), location).toString()
+
+                    if (!isAllowedPfrUrl(nextUrl)) {
+                        throw SecurityException("PFR preusmeravanje vodi na nedozvoljen host")
+                    }
+
+                    currentUrl = nextUrl
+                    return@repeat
+                }
+
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+
+                if (code !in 200..299) {
+                    throw IllegalStateException("HTTP $code")
+                }
+                if (body.isBlank()) {
+                    throw IllegalStateException("PFR odgovor je prazan")
+                }
+
+                return body
+            } finally {
+                connection.disconnect()
+            }
+        }
+
+        throw IllegalStateException("Previše HTTPS preusmeravanja")
     }
 
     private fun applyJson(root: JSONObject) {
@@ -318,5 +356,9 @@ $rawJsonBlock
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
             .replace("'", "&#39;")
+    }
+
+    companion object {
+        private const val MAX_REDIRECTS = 5
     }
 }
