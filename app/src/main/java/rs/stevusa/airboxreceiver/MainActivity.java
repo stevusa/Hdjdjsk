@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -20,12 +19,27 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         buildUi();
         startReceiver();
+        CastConnectBridge.start(this, getIntent());
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        CastConnectBridge.start(this, null);
         refreshStatus();
+    }
+
+    @Override
+    protected void onPause() {
+        CastConnectBridge.stop();
+        super.onPause();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        CastConnectBridge.onNewIntent(intent);
     }
 
     private void buildUi() {
@@ -36,7 +50,7 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(Color.rgb(16, 16, 16));
 
         TextView title = new TextView(this);
-        title.setText("AirBox Receiver");
+        title.setText("AirBox Receiver 0.2");
         title.setTextColor(Color.WHITE);
         title.setTextSize(32f);
         title.setGravity(Gravity.CENTER);
@@ -77,7 +91,12 @@ public class MainActivity extends Activity {
         root.addView(stop, buttonParams());
 
         TextView note = new TextView(this);
-        note.setText("DLNA/UPnP: aktivno\nHTTP prijem: aktivno\nAirPlay / Cast / Miracast: adapteri za narednu fazu");
+        note.setText(
+                "DLNA/UPnP: aktivno\n" +
+                "HTTP prijem: aktivno\n" +
+                "AirPlay 1 video URL: osnovna podrška\n" +
+                "Google Cast Connect: ugrađen (traži registraciju Cast App ID-a)\n" +
+                "Miracast: još nije ugrađen");
         note.setTextColor(Color.GRAY);
         note.setTextSize(16f);
         LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(
@@ -119,6 +138,7 @@ public class MainActivity extends Activity {
                 "Status: spreman za prijem\n" +
                 "IP: " + ip + "\n" +
                 "HTTP: http://" + ip + ":8080\n" +
+                "AirPlay: " + ip + ":7000\n" +
                 "DLNA naziv: AirBox Receiver");
     }
 }
