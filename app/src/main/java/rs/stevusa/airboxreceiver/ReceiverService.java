@@ -15,6 +15,7 @@ public class ReceiverService extends Service implements SimpleHttpServer.Control
 
     private SimpleHttpServer httpServer;
     private SsdpResponder ssdpResponder;
+    private AirPlayReceiver airPlayReceiver;
 
     @Override
     public void onCreate() {
@@ -32,6 +33,10 @@ public class ReceiverService extends Service implements SimpleHttpServer.Control
 
     @Override
     public void onDestroy() {
+        if (airPlayReceiver != null) {
+            airPlayReceiver.stop();
+            airPlayReceiver = null;
+        }
         if (ssdpResponder != null) {
             ssdpResponder.stop();
             ssdpResponder = null;
@@ -78,6 +83,10 @@ public class ReceiverService extends Service implements SimpleHttpServer.Control
             ssdpResponder = new SsdpResponder(8080);
             ssdpResponder.start();
         }
+        if (airPlayReceiver == null) {
+            airPlayReceiver = new AirPlayReceiver(this, this);
+            airPlayReceiver.start();
+        }
     }
 
     private void createNotificationChannel() {
@@ -102,7 +111,7 @@ public class ReceiverService extends Service implements SimpleHttpServer.Control
         String ip = NetworkUtils.getLocalIpv4();
         return new Notification.Builder(this, CHANNEL_ID)
                 .setContentTitle("AirBox Receiver radi")
-                .setContentText("DLNA/HTTP prijem na " + ip)
+                .setContentText("DLNA / HTTP / AirPlay na " + ip)
                 .setSmallIcon(android.R.drawable.stat_sys_download_done)
                 .setOngoing(true)
                 .setContentIntent(contentIntent)
