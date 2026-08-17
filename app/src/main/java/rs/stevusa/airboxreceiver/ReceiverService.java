@@ -8,7 +8,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
 
-public class ReceiverService extends Service implements SimpleHttpServer.ControlHandler {
+public class ReceiverService extends Service implements SimpleHttpServer.ControlHandler, PageShareServer.Handler {
     static final String ACTION_STOP_PLAYBACK = "rs.stevusa.airboxreceiver.STOP_PLAYBACK";
     private static final String CHANNEL_ID = "airbox_receiver";
     private static final int NOTIFICATION_ID = 1001;
@@ -16,6 +16,7 @@ public class ReceiverService extends Service implements SimpleHttpServer.Control
     private SimpleHttpServer httpServer;
     private SsdpResponder ssdpResponder;
     private AirPlayReceiver airPlayReceiver;
+    private PageShareServer pageShareServer;
 
     @Override
     public void onCreate() {
@@ -33,6 +34,10 @@ public class ReceiverService extends Service implements SimpleHttpServer.Control
 
     @Override
     public void onDestroy() {
+        if (pageShareServer != null) {
+            pageShareServer.stop();
+            pageShareServer = null;
+        }
         if (airPlayReceiver != null) {
             airPlayReceiver.stop();
             airPlayReceiver = null;
@@ -68,6 +73,17 @@ public class ReceiverService extends Service implements SimpleHttpServer.Control
     }
 
     @Override
+    public void onOpenPage(String url) {
+        if (url == null) return;
+        String trimmed = url.trim();
+        if (!(trimmed.startsWith("http://") || trimmed.startsWith("https://"))) return;
+        Intent browser = new Intent(this, BrowserActivity.class);
+        browser.putExtra(BrowserActivity.EXTRA_URL, trimmed);
+        browser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(browser);
+    }
+
+    @Override
     public void onStopPlayback() {
         Intent stop = new Intent(ACTION_STOP_PLAYBACK);
         stop.setPackage(getPackageName());
@@ -86,6 +102,10 @@ public class ReceiverService extends Service implements SimpleHttpServer.Control
         if (airPlayReceiver == null) {
             airPlayReceiver = new AirPlayReceiver(this, this);
             airPlayReceiver.start();
+        }
+        if (pageShareServer == null) {
+            pageShareServer = new PageShareServer(this);
+            pageShareServer.start();
         }
     }
 
@@ -111,7 +131,7 @@ public class ReceiverService extends Service implements SimpleHttpServer.Control
         String ip = NetworkUtils.getLocalIpv4();
         return new Notification.Builder(this, CHANNEL_ID)
                 .setContentTitle("AirBox Receiver radi")
-                .setContentText("DLNA / HTTP / AirPlay na " + ip)
+                .setContentText("DLNA / HTTP / AirPlay / Web stranice na " + ip)
                 .setSmallIcon(android.R.drawable.stat_sys_download_done)
                 .setOngoing(true)
                 .setContentIntent(contentIntent)
