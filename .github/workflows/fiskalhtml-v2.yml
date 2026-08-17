@@ -1,0 +1,43 @@
+name: Build Fiskal HTML v2 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "fiskalhtml-v2" ]
+    paths:
+      - "FiskalHTML-v2/**"
+      - ".github/workflows/fiskalhtml-v2.yml"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "FiskalHTML-v2/**"
+      - ".github/workflows/fiskalhtml-v2.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build debug APK
+        run: gradle -p FiskalHTML-v2 assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FiskalHTML-v2-debug-apk
+          path: FiskalHTML-v2/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
